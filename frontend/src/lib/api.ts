@@ -1,7 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const api = {
-  login: async (username, password) => {
+  login: async (username: string, password: string) => {
     const formData = new FormData();
     formData.append("username", username);
     formData.append("password", password);
@@ -15,7 +15,7 @@ export const api = {
     return res.json();
   },
 
-  register: async (email, password) => {
+  register: async (email: string, password: string) => {
     const res = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -25,7 +25,7 @@ export const api = {
     return res.json();
   },
 
-  getInstances: async (token) => {
+  getInstances: async (token: string) => {
     const res = await fetch(`${API_URL}/instances/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -33,7 +33,7 @@ export const api = {
     return res.json();
   },
 
-  createInstance: async (token, name) => {
+  createInstance: async (token: string, name: string) => {
     const res = await fetch(`${API_URL}/instances/`, {
       method: "POST",
       headers: {
@@ -46,7 +46,7 @@ export const api = {
     return res.json();
   },
 
-  getQRCode: async (token, instanceId) => {
+  getQRCode: async (token: string, instanceId: number) => {
     const res = await fetch(`${API_URL}/instances/${instanceId}/qrcode`, {
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -54,7 +54,7 @@ export const api = {
     return res.json();
   },
 
-  toggleWarming: async (token, instanceId, enable) => {
+  toggleWarming: async (token: string, instanceId: number, enable: boolean) => {
       const action = enable ? "start" : "stop";
       const res = await fetch(`${API_URL}/instances/${instanceId}/warming/${action}`, {
           method: "POST",

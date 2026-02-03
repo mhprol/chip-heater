@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface Instance {
+export interface Instance {
   id: number;
   name: string;
   status: string;

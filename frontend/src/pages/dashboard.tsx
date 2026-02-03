@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/lib/api";
-import { InstanceCard } from "@/components/InstanceCard";
+import { InstanceCard, Instance } from "@/components/InstanceCard";
 import { QRCodeScanner } from "@/components/QRCodeScanner";
 
 export default function Dashboard() {
-  const [instances, setInstances] = useState([]);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [newInstanceName, setNewInstanceName] = useState("");
   const [showQR, setShowQR] = useState(false);
   const [qrCode, setQrCode] = useState("");
@@ -23,9 +23,10 @@ export default function Dashboard() {
   const loadInstances = async () => {
     try {
       const token = localStorage.getItem("token");
+      if (!token) return;
       const data = await api.getInstances(token);
       setInstances(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     }
   };
@@ -34,10 +35,11 @@ export default function Dashboard() {
     e.preventDefault();
     try {
         const token = localStorage.getItem("token");
+        if (!token) return;
         await api.createInstance(token, newInstanceName);
         setNewInstanceName("");
         loadInstances();
-    } catch (err) {
+    } catch (err: any) {
         alert("Error creating instance: " + err.message);
     }
   };
@@ -45,6 +47,7 @@ export default function Dashboard() {
   const handleConnect = async (id: number) => {
       try {
           const token = localStorage.getItem("token");
+          if (!token) return;
           const data = await api.getQRCode(token, id);
           if (data.qrcode) {
               setQrCode(data.qrcode);
@@ -52,7 +55,7 @@ export default function Dashboard() {
           } else {
               alert("Could not get QR Code. Instance might be already connected or not ready.");
           }
-      } catch (err) {
+      } catch (err: any) {
           alert("Error: " + err.message);
       }
   };
@@ -60,9 +63,10 @@ export default function Dashboard() {
   const handleToggleWarming = async (id: number, enable: boolean) => {
       try {
           const token = localStorage.getItem("token");
+          if (!token) return;
           await api.toggleWarming(token, id, enable);
           loadInstances();
-      } catch (err) {
+      } catch (err: any) {
           alert("Error: " + err.message);
       }
   }
