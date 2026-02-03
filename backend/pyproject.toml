@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chip-heater"
+version = "0.1.0"
+description = "WhatsApp chip warming platform"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.28.0",
+    "pydantic-settings>=2.0.0",
+    "httpx>=0.24.0",
+    "apscheduler>=3.10.0",
+    "redis>=5.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/heater"]
