@@ -20,7 +20,7 @@ export default function Login() {
             localStorage.setItem("token", data.access_token);
             router.push("/dashboard");
         }
-    } catch (err) {
+    } catch (err: any) {
       alert("Error: " + err.message);
     }
   };
