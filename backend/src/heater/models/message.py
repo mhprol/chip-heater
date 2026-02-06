@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from heater.database import Base
-from datetime import datetime
+from datetime import datetime, UTC
 
 class Message(Base):
     __tablename__ = "messages"
@@ -12,6 +12,6 @@ class Message(Base):
     message_type = Column(String) # text, audio, reaction
     content = Column(String)
     external_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
     instance = relationship("Instance", back_populates="messages")
