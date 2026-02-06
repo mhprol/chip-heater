@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, UTC
 import asyncio
 import random
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +34,7 @@ class WarmingEngine:
         if not peers:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         weights = []
 
         for peer in peers:
@@ -50,6 +50,8 @@ class WarmingEngine:
             last_msg_time = result.scalars().first()
 
             if last_msg_time:
+                if last_msg_time.tzinfo is None:
+                    last_msg_time = last_msg_time.replace(tzinfo=UTC)
                 # Time since last interaction in seconds
                 delta = (now - last_msg_time).total_seconds()
                 # Weight = delta (longer time = higher weight)
@@ -84,7 +86,10 @@ class WarmingEngine:
 
         # Check delay
         if instance.last_active_at:
-            delta = datetime.utcnow() - instance.last_active_at
+            last_active_at = instance.last_active_at
+            if last_active_at.tzinfo is None:
+                last_active_at = last_active_at.replace(tzinfo=UTC)
+            delta = datetime.now(UTC) - last_active_at
             if delta.total_seconds() < instance.private_delay_min:
                 return
 
@@ -119,7 +124,7 @@ class WarmingEngine:
         # Update stats
         instance.messages_today += 1
         instance.messages_total += 1
-        instance.last_active_at = datetime.utcnow()
+        instance.last_active_at = datetime.now(UTC)
         await self.db.commit()
 
     async def send_private_message(self, sender: Instance, receiver: Instance):

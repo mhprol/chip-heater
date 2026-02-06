@@ -4,7 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from heater.database import Base
 from heater.models.user import User
@@ -72,7 +72,7 @@ async def test_send_reaction(db_session, mock_evolution):
         peer_number=me.phone_number,
         content="Hello",
         external_id="MSG_FROM_PEER",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(UTC)
     )
     db_session.add(msg)
     await db_session.commit()
@@ -109,9 +109,9 @@ async def test_peer_selection_logic(db_session, mock_evolution):
 
     # Log interactions
     # p2 talked recently
-    msg2 = Message(instance_id=me.id, peer_number=p2.phone_number, created_at=datetime.utcnow() - timedelta(minutes=1))
+    msg2 = Message(instance_id=me.id, peer_number=p2.phone_number, created_at=datetime.now(UTC) - timedelta(minutes=1))
     # p1 talked long ago
-    msg1 = Message(instance_id=me.id, peer_number=p1.phone_number, created_at=datetime.utcnow() - timedelta(days=1))
+    msg1 = Message(instance_id=me.id, peer_number=p1.phone_number, created_at=datetime.now(UTC) - timedelta(days=1))
 
     db_session.add_all([msg1, msg2])
     await db_session.commit()
