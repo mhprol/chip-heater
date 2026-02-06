@@ -1,9 +1,9 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import asyncio
 import random
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, or_, desc
 
 from heater.evolution import EvolutionClient
 from heater.models.instance import Instance
@@ -26,9 +26,49 @@ class WarmingEngine:
         else: # Crosses midnight
             return start <= now or now <= end
 
+    async def _select_peer(self, instance: Instance, peers: list[Instance]) -> Instance:
+        """
+        Select a peer using weighted selection based on last interaction time.
+        Peers not spoken to recently have higher weight.
+        """
+        if not peers:
+            return None
+
+        now = datetime.utcnow()
+        weights = []
+
+        for peer in peers:
+            # Query last message timestamp between instance and peer
+            stmt = select(Message.created_at).where(
+                or_(
+                    (Message.instance_id == instance.id) & (Message.peer_number == peer.phone_number),
+                    (Message.instance_id == peer.id) & (Message.peer_number == instance.phone_number)
+                )
+            ).order_by(desc(Message.created_at)).limit(1)
+
+            result = await self.db.execute(stmt)
+            last_msg_time = result.scalars().first()
+
+            if last_msg_time:
+                # Time since last interaction in seconds
+                delta = (now - last_msg_time).total_seconds()
+                # Weight = delta (longer time = higher weight)
+                # Add base weight to avoid 0
+                weight = delta + 60
+            else:
+                # Never interacted: high weight (e.g. 30 days)
+                weight = 3600 * 24 * 30
+
+            weights.append(weight)
+
+        # Select peer
+        selected = random.choices(peers, weights=weights, k=1)[0]
+        return selected
+
     async def run_warming_cycle(self, instance_id: int):
         """Execute one warming cycle for an instance"""
-        result = await self.db.execute(select(Instance).where(Instance.id == instance_id))
+        # Concurrency: Lock the row
+        result = await self.db.execute(select(Instance).where(Instance.id == instance_id).with_for_update())
         instance = result.scalars().first()
 
         if not instance or not instance.warming_enabled:
@@ -49,13 +89,11 @@ class WarmingEngine:
                 return
 
         # Get available peers (other connected instances)
-        # Assuming we can only chat with other instances in the DB for now
-        # Also ensure they are 'connected' (status check omitted for brevity or need to check actual status)
         peers_result = await self.db.execute(
             select(Instance).where(
                 Instance.id != instance_id,
-                Instance.status == 'connected', # Assuming we update this status via webhook
-                Instance.warming_enabled == True # Maybe we only warm with other warming instances
+                Instance.status == 'connected',
+                Instance.warming_enabled == True
             )
         )
         peers = peers_result.scalars().all()
@@ -63,8 +101,8 @@ class WarmingEngine:
         if not peers:
             return
 
-        # Pick a random peer
-        peer = random.choice(peers)
+        # Pick a peer
+        peer = await self._select_peer(instance, peers)
 
         # Decide activity type
         # tailored for MVP: mostly private messages
@@ -98,15 +136,16 @@ class WarmingEngine:
         # Wait realistic typing time
         await asyncio.sleep(await HumanBehavior.typing_delay(len(content)))
 
+        external_id = None
         # Send message
-        # Receiver number might need formatting (Evolution API expects number with country code)
-        # Assuming phone_number is stored correctly or sender name is sufficient?
-        # send_text(instance_name, number, text)
         try:
-            await self.evolution.send_text(sender.name, receiver.phone_number, content)
+            resp = await self.evolution.send_text(sender.name, receiver.phone_number, content)
+            if isinstance(resp, dict):
+                # Attempt to extract ID. Structure varies by version but usually in key.
+                key = resp.get("key") or resp.get("data", {}).get("key", {})
+                external_id = key.get("id")
         except Exception as e:
             print(f"Failed to send message: {e}")
-            # Clear presence
             try:
                 await self.evolution.set_presence(sender.name, "available")
             except:
@@ -124,13 +163,66 @@ class WarmingEngine:
             instance_id=sender.id,
             peer_number=receiver.phone_number,
             message_type="text",
-            content=content
+            content=content,
+            external_id=external_id
         )
         self.db.add(log_msg)
         await self.db.commit()
 
     async def send_reaction(self, sender: Instance, receiver: Instance):
-        # Implementation for reaction requires message ID to react to.
-        # This is complex without history.
-        # For now, skip or pick a random recent message if we tracked it.
-        pass
+        # Find a recent message to react to (limit 5 recent messages)
+        # Priority: Message from peer to sender
+        stmt = select(Message).where(
+            Message.instance_id == receiver.id,
+            Message.peer_number == sender.phone_number,
+            Message.external_id != None
+        ).order_by(desc(Message.created_at)).limit(5)
+
+        result = await self.db.execute(stmt)
+        messages = result.scalars().all()
+
+        target_msg = None
+        from_me = False
+
+        if messages:
+            target_msg = random.choice(messages)
+            from_me = False
+        else:
+            # Fallback: React to our own message sent to peer
+            stmt = select(Message).where(
+                Message.instance_id == sender.id,
+                Message.peer_number == receiver.phone_number,
+                Message.external_id != None
+            ).order_by(desc(Message.created_at)).limit(5)
+            result = await self.db.execute(stmt)
+            messages = result.scalars().all()
+            if messages:
+                target_msg = random.choice(messages)
+                from_me = True
+
+        if not target_msg:
+            return
+
+        reaction = random.choice(["👍", "❤️", "😂", "😮", "🙏"])
+
+        key = {
+            "remoteJid": f"{receiver.phone_number}@s.whatsapp.net",
+            "fromMe": from_me,
+            "id": target_msg.external_id
+        }
+
+        try:
+            await self.evolution.send_reaction(sender.name, key, reaction)
+
+            # Log the reaction
+            log_msg = Message(
+                instance_id=sender.id,
+                peer_number=receiver.phone_number,
+                message_type="reaction",
+                content=reaction,
+                external_id=None
+            )
+            self.db.add(log_msg)
+            await self.db.commit()
+        except Exception as e:
+            print(f"Failed to send reaction: {e}")
