@@ -11,6 +11,7 @@ class Message(Base):
     peer_number = Column(String) # The number we are talking to
     message_type = Column(String) # text, audio, reaction
     content = Column(String)
+    external_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     instance = relationship("Instance", back_populates="messages")
