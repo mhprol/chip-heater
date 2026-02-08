@@ -26,7 +26,11 @@ async def update_instance_status(instance_name: str, status: str):
 
 @router.post("/evolution")
 async def evolution_webhook(request: Request, background_tasks: BackgroundTasks):
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return {"status": "error", "reason": "invalid_json"}
+
     # print(f"Received webhook: {data}")
 
     # Evolution API 2.0+ structure varies.
