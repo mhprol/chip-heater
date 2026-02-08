@@ -15,5 +15,7 @@ RUN pip install --no-cache-dir .
 # Copy application code
 COPY src/ /app/src/
 
+ENV PYTHONPATH=/app/src
+
 # Run the application
 CMD ["uvicorn", "heater.main:app", "--host", "0.0.0.0", "--port", "8000"]
