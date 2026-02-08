@@ -18,7 +18,8 @@ class EvolutionClient:
 
     async def get_qrcode(self, instance: str) -> str:
         resp = await self.client.get(f"/instance/connect/{instance}")
-        return resp.json().get("qrcode", {}).get("base64")
+        data = resp.json()
+        return data.get("base64") or (data.get("qrcode") or {}).get("base64")
 
     async def send_text(self, instance: str, number: str, text: str):
         return (await self.client.post(f"/message/sendText/{instance}", json={
